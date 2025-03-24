@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D FPS Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #222;
+        }
+
+        #game-container {
+            text-align: center;
+        }
+
+        #game-canvas {
+            background-color: #000;
+            border: 2px solid #fff;
+        }
+
+        #score {
+            color: #fff;
+            font-size: 24px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas" width="800" height="600"></canvas>
+        <div id="score">Score: 0</div>
+    </div>
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+
+        let score = 0;
+        let gameInterval;
+        let enemies = [];
+        let bullets = [];
+        let mouseX = 0;
+        let mouseY = 0;
+
+        // Player object
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height - 50,
+            width: 50,
+            height: 50,
+            color: 'blue',
+            speed: 5
+        };
+
+        // Draw player
+        function drawPlayer() {
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x - player.width / 2, player.y, player.width, player.height);
+        }
+
+        // Enemy object
+        function createEnemy() {
+            const enemy = {
+                x: Math.random() * canvas.width,
+                y: 0,
+                width: 50,
+                height: 50,
+                color: 'red',
+                speed: 2
+            };
+            enemies.push(enemy);
+        }
+
+        // Draw enemies
+        function drawEnemies() {
+            enemies.forEach((enemy, index) => {
+                ctx.fillStyle = enemy.color;
+                ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+
+                // Move enemy down
+                enemy.y += enemy.speed;
+
+                // Check if enemy reaches the bottom
+                if (enemy.y + enemy.height > canvas.height) {
+                    enemies.splice(index, 1); // Remove enemy
+                    alert('Game Over!');
+                    resetGame();
+                }
+            });
+        }
+
+        // Bullet object
+        function createBullet() {
+            const angle = Math.atan2(mouseY - player.y, mouseX - player.x);
+            const bullet = {
+                x: player.x,
+                y: player.y,
+                width: 10,
+                height: 10,
+                color: 'yellow',
+                speed: 10,
+                angle: angle
+            };
+            bullets.push(bullet);
+        }
+
+        // Draw bullets
+        function drawBullets() {
+            bullets.forEach((bullet, index) => {
+                ctx.fillStyle = bullet.color;
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+
+                // Move bullet in the direction of the mouse
+                bullet.x += Math.cos(bullet.angle) * bullet.speed;
+                bullet.y += Math.sin(bullet.angle) * bullet.speed;
+
+                // Remove bullet if it goes off screen
+                if (bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
+                    bullets.splice(index, 1);
+                }
+
+                // Check for collision with enemies
+                enemies.forEach((enemy, enemyIndex) => {
+                    if (bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y) {
+                        bullets.splice(index, 1); // Remove bullet
+                        enemies.splice(enemyIndex, 1); // Remove enemy
+                        score++;
+                        scoreDisplay.textContent = `Score: ${score}`;
+                    }
+                });
+            });
+        }
+
+        // Update game state
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+            drawPlayer();
+            drawEnemies();
+            drawBullets();
+        }
+
+        // Reset game
+        function resetGame() {
+            clearInterval(gameInterval);
+            score = 0;
+            scoreDisplay.textContent = `Score: ${score}`;
+            enemies = [];
+            bullets = [];
+        }
+
+        // Start game
+        function startGame() {
+            resetGame();
+            gameInterval = setInterval(update, 20);
+            setInterval(createEnemy, 1000); // Create new enemy every second
+        }
+
+        // Handle mouse movement
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+        });
+
+        // Handle mouse click (shoot)
+        canvas.addEventListener('click', () => {
+            createBullet();
+        });
+
+        // Start the game
+        startGame();
+
+    </script>
+</body>
+</html>
