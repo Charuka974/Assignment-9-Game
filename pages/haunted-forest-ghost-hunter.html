@@ -16,7 +16,7 @@
         }
         canvas { 
             display: block; 
-            outline: none;
+            outline:  none;
         }
 
         #crosshair {
@@ -112,6 +112,7 @@
     <div id="crosshair"></div>
     <div id="uiOverlay">
         <div id="score">Score: 0</div>
+        <div id="ammo">Ammo: ∞</div>
         <div id="health">HP: 100</div>
         <div id="healthBarBackground">
             <div id="healthBar"></div>
@@ -136,6 +137,7 @@
         let health = GAME_CONFIG.playerMaxHealth;
         let isGameOver = false;
         let isPointerLocked = false;
+        let gun;
 
         // Set up the scene, camera, and renderer
         const scene = new THREE.Scene();
@@ -259,6 +261,33 @@
             );
         }
 
+        // Load Gun Model
+        const gunLoader = new THREE.GLTFLoader();
+        gunLoader.load('/assets/ghost-hunter/weapons/KSR28_Sniperrifle_Blender-2.8_Version.glb', (gltf) => {
+            gun = gltf.scene;
+            
+            // Scale and position the gun
+            gun.scale.set(1, 1, 1);
+            gun.position.set(0.5, -0.5, -1.5);
+            gun.rotation.set(0, Math.PI, 0);
+            
+            
+            // Enable shadows
+            gun.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                }
+            });
+            
+            
+            // const light = new THREE.DirectionalLight(0xffffff, 1);
+            // light.position.set(2, 4, 5);
+            // scene.add(light);
+            // Add gun to camera so it moves with the view
+            camera.add(gun);
+        });
+
+        
         // Ghost Management
         const ghosts = [];
         const ghostGeometry = new THREE.BoxGeometry(1, 1, 1);
@@ -285,12 +314,14 @@
                 (Math.random() - 0.5) * 0.05
             );
             
+            
             ghost.health = GAME_CONFIG.ghostMaxHealth;
             ghost.damage = 10;
             
             scene.add(ghost);
             ghosts.push(ghost);
         }
+        
 
         // Initial ghost spawn
         for (let i = 0; i < GAME_CONFIG.initialGhostCount; i++) {
@@ -365,22 +396,39 @@
 
         // Shooting Mechanic
         function shoot() {
-            if (!isPointerLocked) return;
+            if (!isPointerLocked || !gun) return;
             
             const shootRaycaster = new THREE.Raycaster();
             shootRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
 
             // Visual shooting effect (muzzle flash)
             const muzzleFlash = new THREE.PointLight(0xff6600, 5, 2);
-            muzzleFlash.position.copy(camera.position);
+            
+            // Position muzzle flash at gun barrel
+            const barrelPosition = new THREE.Vector3(0, 0, 0);
+            if (gun) {
+                // Find the barrel or use a default position
+                const barrel = gun.getObjectByName('Barrel') || gun;
+                barrel.getWorldPosition(barrelPosition);
+            }
+            
+            muzzleFlash.position.copy(barrelPosition);
             scene.add(muzzleFlash);
+            
+            // Gun recoil animation
+            if (gun) {
+                gun.position.z += 0.1;
+                setTimeout(() => {
+                    gun.position.z -= 0.1;
+                }, 100);
+            }
             
             // Bullet tracer
             const bulletDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
             const bulletEnd = bulletDirection.clone().multiplyScalar(100).add(camera.position);
             
             const bulletGeometry = new THREE.BufferGeometry().setFromPoints([
-                camera.position,
+                barrelPosition,
                 bulletEnd
             ]);
             
@@ -402,12 +450,14 @@
                     ghost.health--;
                     
                     if (ghost.health <= 0) {
+                        createExplosion(ghost.position);
                         scene.remove(ghost);
                         ghosts.splice(index, 1);
                         score++;
                         document.getElementById("score").innerText = `Score: ${score}`;
                         createGhost();
                     }
+
                 }
             });
         }
@@ -538,6 +588,50 @@
             renderer.render(scene, camera);
         }
 
+        function createExplosion(position) {
+            for (let i = 0; i < 10; i++) {
+                const particle = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.2, 32, 32),
+
+                    new THREE.MeshStandardMaterial({ 
+                        color: 0x660000,      // Dark Blood Red
+                        emissive: 0x330000,   // Deep Red Glow (Darker and more ominous)
+                        emissiveIntensity: 2, // Increase glow intensity
+                        transparent: true,
+                        opacity: 0.8          // Slight transparency for a smoky effect
+                    })
+                );
+                particle.position.copy(position);
+                
+                // Give particles a random velocity
+                const velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.5,
+                    (Math.random() - 0.5) * 0.5,
+                    (Math.random() - 0.5) * 0.5
+                );
+
+                scene.add(particle);
+
+                // Animate the particles
+                let explosionTime = 0;
+                function animateExplosion() {
+                    if (explosionTime > 100) {
+                        scene.remove(particle);
+                        return;
+                    }
+                    explosionTime++;
+                    particle.position.add(velocity);
+
+                    // Gradually fade out
+                    particle.material.opacity = Math.max(0, 0.8 - explosionTime * 0.008);
+
+                    requestAnimationFrame(animateExplosion);
+                }
+                animateExplosion();
+            }
+        }
+
+
         // Start the game loop
         animate();
 
@@ -547,6 +641,8 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+
     </script>
 </body>
 </html>

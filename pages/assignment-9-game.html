@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Adventure RPG</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #222;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            margin: 20px auto;
+            background-color: #8b8;
+            border: 4px solid #654;
+            overflow: hidden;
+        }
+        #player {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            background-color: #3498db;
+            border-radius: 50%;
+            z-index: 10;
+            transition: all 0.1s ease;
+        }
+        .enemy {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            background-color: #e74c3c;
+            border-radius: 50%;
+            z-index: 5;
+            transition: all 0.2s ease;
+        }
+        .other-player {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            background-color: #2ecc71;
+            border-radius: 50%;
+            z-index: 8;
+            transition: all 0.1s ease;
+        }
+        #health-bar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 200px;
+            height: 20px;
+            background-color: #ddd;
+            border: 2px solid #333;
+            z-index: 20;
+        }
+        #health-fill {
+            height: 100%;
+            width: 100%;
+            background-color: #2ecc71;
+            transition: width 0.3s ease;
+        }
+        #attack-button {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 20;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #c0392b;
+        }
+        #attack-button:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #c0392b;
+        }
+        #score-display {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            font-size: 18px;
+            z-index: 20;
+            text-shadow: 1px 1px 2px black;
+        }
+        .player-name {
+            position: absolute;
+            top: -20px;
+            width: 100px;
+            text-align: center;
+            font-size: 12px;
+            color: white;
+            text-shadow: 1px 1px 1px black;
+        }
+        #login-dialog {
+            display: none;
+        }
+        .attack-effect {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle, rgba(255,255,0,0.8) 0%, rgba(255,255,0,0) 70%);
+            border-radius: 50%;
+            z-index: 7;
+            pointer-events: none;
+            animation: fadeOut 0.5s forwards;
+        }
+        @keyframes fadeOut {
+            to { opacity: 0; transform: scale(1.5); }
+        }
+        .obstacle {
+            position: absolute;
+            background-color: #654;
+            z-index: 3;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="player"></div>
+        <div id="health-bar">
+            <div id="health-fill"></div>
+        </div>
+        <div id="score-display">Score: 0</div>
+        <button id="attack-button">ATTACK (SPACE)</button>
+    </div>
+
+    <div id="login-dialog" title="Player Login">
+        <form>
+            <label for="player-name">Your Name:</label>
+            <input type="text" id="player-name" class="text ui-widget-content ui-corner-all" value="Adventurer">
+            <input type="submit" tabindex="-1" style="position:absolute; top:-1000px">
+        </form>
+    </div>
+
+    <script>
+        // Game object using OOP pattern
+        function TopDownRPG() {
+            // Game properties
+            this.player = null;
+            this.enemies = [];
+            this.otherPlayers = {};
+            this.obstacles = [];
+            this.gameWidth = 800;
+            this.gameHeight = 600;
+            this.playerSpeed = 5;
+            this.enemySpeed = 2;
+            this.playerId = null;
+            this.playerName = '';
+            this.keys = {};
+            this.attackCooldown = false;
+            this.attackRange = 50;
+            this.playerHealth = 100;
+            this.maxHealth = 100;
+            this.enemyDamage = 10;
+            this.attackDamage = 25;
+            this.enemySpawnRate = 3000; // ms
+            this.lastEnemySpawn = 0;
+            this.score = 0;
+            this.gameActive = false;
+            this.database = null; // Will hold our Firebase database reference
+            
+            // Initialize game
+            this.init = function() {
+                this.setupControls();
+                this.createObstacles();
+                this.showLoginDialog();
+            };
+            
+            
+            // Show login dialog
+            this.showLoginDialog = function() {
+                const self = this;
+                $("#login-dialog").dialog({
+                    modal: true,
+                    buttons: {
+                        "Start Adventure": function() {
+                            self.playerName = $("#player-name").val() || "Adventurer";
+                            $(this).dialog("close");
+                            self.setupPlayer();
+                            self.gameActive = true;
+                            self.gameLoop();
+                        }
+                    },
+                    closeOnEscape: false,
+                    open: function() {
+                        $(".ui-dialog-titlebar-close").hide();
+                    }
+                });
+            };
+            
+            // Create random obstacles
+            this.createObstacles = function() {
+                for (let i = 0; i < 10; i++) {
+                    const width = Math.random() * 80 + 40;
+                    const height = Math.random() * 80 + 40;
+                    const x = Math.random() * (this.gameWidth - width);
+                    const y = Math.random() * (this.gameHeight - height);
+                    
+                    this.obstacles.push({
+                        x: x,
+                        y: y,
+                        width: width,
+                        height: height
+                    });
+                    
+                    $('<div class="obstacle"></div>')
+                        .css({
+                            left: x,
+                            top: y,
+                            width: width,
+                            height: height
+                        })
+                        .appendTo('#game-container');
+                }
+            };
+            
+            // Set up player
+            this.setupPlayer = function() {
+                this.player = {
+                    x: this.gameWidth / 2,
+                    y: this.gameHeight / 2,
+                    width: 32,
+                    height: 32,
+                    lastUpdate: Date.now()
+                };
+                
+                $("#player").css({
+                    left: this.player.x - this.player.width / 2,
+                    top: this.player.y - this.player.height / 2
+                });
+                
+                // Reset health and score
+                this.playerHealth = this.maxHealth;
+                this.score = 0;
+                $('#health-fill').css('width', '100%');
+                $('#score-display').text('Score: 0');
+            };
+            
+            
+            // Update other player's position
+            this.updateOtherPlayer = function(id, data) {
+                if (!this.otherPlayers[id]) {
+                    this.otherPlayers[id] = $('<div class="other-player"></div>')
+                        .attr('id', 'other-player-' + id)
+                        .appendTo('#game-container');
+                    
+                    // Add name label
+                    $('<div class="player-name"></div>')
+                        .text(data.name)
+                        .appendTo(this.otherPlayers[id]);
+                }
+                
+                this.otherPlayers[id].css({
+                    left: data.x - 16,
+                    top: data.y - 16
+                });
+                
+                // Update health indicator
+                const healthPercent = (data.health / this.maxHealth) * 100;
+                let healthColor;
+                if (healthPercent > 60) healthColor = '#2ecc71';
+                else if (healthPercent > 30) healthColor = '#f39c12';
+                else healthColor = '#e74c3c';
+                
+                this.otherPlayers[id].css('background-color', healthColor);
+            };
+            
+            // Remove other player
+            this.removeOtherPlayer = function(id) {
+                if (this.otherPlayers[id]) {
+                    this.otherPlayers[id].remove();
+                    delete this.otherPlayers[id];
+                }
+            };
+            
+            // Set up controls
+            this.setupControls = function() {
+                // Keyboard controls
+                $(document).on('keydown', (e) => {
+                    this.keys[e.key] = true;
+                    
+                    // Space to attack
+                    if (e.key === ' ' || e.key === 'Spacebar') {
+                        e.preventDefault();
+                        this.attack();
+                    }
+                });
+                
+                $(document).on('keyup', (e) => {
+                    this.keys[e.key] = false;
+                });
+                
+                // Attack button
+                $('#attack-button').on('click', () => {
+                    this.attack();
+                });
+            };
+            
+            // Handle player movement
+            this.handleMovement = function() {
+                if (!this.player || !this.gameActive) return;
+                
+                const prevX = this.player.x;
+                const prevY = this.player.y;
+                
+                if (this.keys['ArrowUp'] || this.keys['w'] || this.keys['W']) {
+                    this.player.y = Math.max(0, this.player.y - this.playerSpeed);
+                }
+                if (this.keys['ArrowDown'] || this.keys['s'] || this.keys['S']) {
+                    this.player.y = Math.min(this.gameHeight, this.player.y + this.playerSpeed);
+                }
+                if (this.keys['ArrowLeft'] || this.keys['a'] || this.keys['A']) {
+                    this.player.x = Math.max(0, this.player.x - this.playerSpeed);
+                }
+                if (this.keys['ArrowRight'] || this.keys['d'] || this.keys['D']) {
+                    this.player.x = Math.min(this.gameWidth, this.player.x + this.playerSpeed);
+                }
+                
+                // Check collision with obstacles
+                for (const obstacle of this.obstacles) {
+                    if (this.checkCollision(this.player, obstacle)) {
+                        this.player.x = prevX;
+                        this.player.y = prevY;
+                        break;
+                    }
+                }
+                
+                // Update position if changed
+                if (this.player.x !== prevX || this.player.y !== prevY) {
+                    $('#player').css({
+                        left: this.player.x - this.player.width / 2,
+                        top: this.player.y - this.player.height / 2
+                    });
+                }
+            };
+            
+            // Spawn enemies
+            this.spawnEnemies = function() {
+                if (!this.gameActive) return;
+                
+                const now = Date.now();
+                if (now - this.lastEnemySpawn > this.enemySpawnRate && this.enemies.length < 10) {
+                    this.lastEnemySpawn = now;
+                    
+                    // Spawn at edges of screen
+                    let x, y;
+                    if (Math.random() < 0.5) {
+                        x = Math.random() < 0.5 ? 0 : this.gameWidth;
+                        y = Math.random() * this.gameHeight;
+                    } else {
+                        x = Math.random() * this.gameWidth;
+                        y = Math.random() < 0.5 ? 0 : this.gameHeight;
+                    }
+                    
+                    const enemy = {
+                        x: x,
+                        y: y,
+                        width: 32,
+                        height: 32,
+                        id: 'enemy-' + Date.now() + '-' + Math.floor(Math.random() * 1000)
+                    };
+                    
+                    this.enemies.push(enemy);
+                    
+                    $('<div class="enemy"></div>')
+                        .attr('id', enemy.id)
+                        .css({
+                            left: enemy.x - enemy.width / 2,
+                            top: enemy.y - enemy.height / 2
+                        })
+                        .appendTo('#game-container');
+                }
+            };
+            
+            // Update enemies
+            this.updateEnemies = function() {
+                if (!this.player || !this.gameActive) return;
+                
+                for (let i = 0; i < this.enemies.length; i++) {
+                    const enemy = this.enemies[i];
+                    
+                    // Simple AI: move toward player
+                    const dx = this.player.x - enemy.x;
+                    const dy = this.player.y - enemy.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist > 0) {
+                        enemy.x += (dx / dist) * this.enemySpeed;
+                        enemy.y += (dy / dist) * this.enemySpeed;
+                    }
+                    
+                    // Update position
+                    $('#' + enemy.id).css({
+                        left: enemy.x - enemy.width / 2,
+                        top: enemy.y - enemy.height / 2
+                    });
+                    
+                    // Check collision with player
+                    if (this.checkCollision(this.player, enemy)) {
+                        this.takeDamage();
+                    }
+                    
+                    // Remove enemies that go out of bounds
+                    if (enemy.x < -50 || enemy.x > this.gameWidth + 50 || 
+                        enemy.y < -50 || enemy.y > this.gameHeight + 50) {
+                        this.removeEnemy(i);
+                        i--;
+                    }
+                }
+            };
+            
+            // Remove enemy
+            this.removeEnemy = function(index) {
+                if (index >= 0 && index < this.enemies.length) {
+                    $('#' + this.enemies[index].id).remove();
+                    this.enemies.splice(index, 1);
+                }
+            };
+            
+            // Check collision between two objects
+            this.checkCollision = function(obj1, obj2) {
+                return obj1.x < obj2.x + obj2.width &&
+                       obj1.x + obj1.width > obj2.x &&
+                       obj1.y < obj2.y + obj2.height &&
+                       obj1.y + obj1.height > obj2.y;
+            };
+            
+            // Player attack
+            this.attack = function() {
+                if (this.attackCooldown || !this.gameActive) return;
+                
+                this.attackCooldown = true;
+                setTimeout(() => {
+                    this.attackCooldown = false;
+                }, 500);
+                
+                // Create attack effect
+                const $effect = $('<div class="attack-effect"></div>').appendTo('#game-container');
+                $effect.css({
+                    left: this.player.x - 30,
+                    top: this.player.y - 30
+                });
+                
+                setTimeout(() => {
+                    $effect.remove();
+                }, 500);
+                
+                // Check for enemies in range
+                for (let i = 0; i < this.enemies.length; i++) {
+                    const enemy = this.enemies[i];
+                    const dx = this.player.x - enemy.x;
+                    const dy = this.player.y - enemy.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < this.attackRange) {
+                        // Remove enemy and increase score
+                        this.removeEnemy(i);
+                        i--;
+                        this.score += 10;
+                        $('#score-display').text('Score: ' + this.score);
+                        
+                        // Visual feedback
+                        $('#player').css('background-color', '#f1c40f');
+                        setTimeout(() => {
+                            $('#player').css('background-color', '#3498db');
+                        }, 200);
+                        
+                        break; // Only hit one enemy per attack
+                    }
+                }
+            };
+            
+            // Player takes damage
+            this.takeDamage = function() {
+                if (this.playerHealth <= 0 || !this.gameActive) return;
+                
+                // Damage cooldown to prevent rapid health loss
+                if (this.lastDamage && Date.now() - this.lastDamage < 500) return;
+                this.lastDamage = Date.now();
+                
+                this.playerHealth -= this.enemyDamage;
+                if (this.playerHealth < 0) this.playerHealth = 0;
+                
+                $('#health-fill').css('width', (this.playerHealth / this.maxHealth) * 100 + '%');
+                
+                if (this.playerHealth <= 0) {
+                    this.gameOver();
+                } else {
+                    // Visual feedback
+                    $('#player').css('background-color', '#e74c3c');
+                    setTimeout(() => {
+                        $('#player').css('background-color', '#3498db');
+                    }, 200);
+                }
+            };
+            
+            // Game over
+            this.gameOver = function() {
+                this.gameActive = false;
+                
+                // Show game over message
+                const $gameOver = $('<div style="position:absolute; top:50%; left:0; width:100%; text-align:center; transform:translateY(-50%); color:white; font-size:48px; text-shadow:2px 2px 4px black; z-index:30;">GAME OVER<br><span style="font-size:24px;">Score: ' + this.score + '</span><br><button id="restart-button" style="margin-top:20px; padding:10px 20px; font-size:18px; background:#2ecc71; color:white; border:none; border-radius:5px; cursor:pointer;">Play Again</button></div>')
+                    .appendTo('#game-container');
+                
+                $('#restart-button').on('click', () => {
+                    $gameOver.remove();
+                    
+                    // Clear enemies
+                    for (let i = this.enemies.length - 1; i >= 0; i--) {
+                        this.removeEnemy(i);
+                    }
+                    
+                    // Reset game
+                    this.setupPlayer();
+                    this.gameActive = true;
+                    this.gameLoop();
+                });
+            };
+            
+            // Main game loop
+            this.gameLoop = function() {
+                if (!this.gameActive) return;
+                
+                this.handleMovement();
+                this.spawnEnemies();
+                this.updateEnemies();
+                
+                requestAnimationFrame(() => {
+                    this.gameLoop();
+                });
+            };
+        }
+
+        // Initialize the game when document is ready
+        $(document).ready(function() {
+            const game = new TopDownRPG();
+            game.init();
+        });
+    </script>
+</body>
+</html>

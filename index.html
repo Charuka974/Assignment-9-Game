@@ -6,41 +6,80 @@
     <title>Assignment 9 Game</title>
 
     <style>
-        body{
-            background-color: grey;
+        .hidden-home-button {
+            display: none;
         }
-        ul{
-            text-align: center;
-            list-style: none;
-        }
-        ul > li {
-            padding: 30px;
-        }
-        a{
-            color: black;
-            text-decoration: none;
-            background-color: white;
+        .form-container{
+            width: 300px;
+            height: 120px;
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            transform: translateX(320px) translateY(140px);
             padding: 20px;
-            border-radius: 20px;
+            background-color: black;
+            display: flex;
+            flex-direction: column;
         }
-
+        .form-container:hover{
+            transform: translateX(0px);
+            transform: translateY(0px);
+        }
+        .form-container form {
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+        .confirm-button{
+            margin-top: 10px;
+        }
     </style>
 
 </head>
 <body>
 
-    <ul>
-        <li><a href="/pages/haunted-forest-ghost-hunter.html">Haunted Forest - Ghost Hunt</a></li>
-        <li><a href="/pages/haunted-realm-ghost-hunter.html">Haunted Realm - Ghost Hunter</a></li>
-        <li><a href="/pages/ghost-hunt-survival.html">Ghost Hunt Survival</a></li>
-        <li><a href="/pages/space-shooter-3d.html">Space Shooter 3D</a></li>
-        <li><a href="/pages/space-shooter-2d-2.html">2D Space Shooter II</a></li>
-        <li><a href="/pages/space-shooter-2d.html">2D Space Shooter I</a></li>
-        <li><a href="/pages/2d-shooter.html">2D Shooter Demo</a></li>
-        <li><a href="/pages/brick-breaker.html">Brick Breaker</a></li>
-        <li><a href="/pages/tic-tac-toe.html">Tic Tac Toe</a></li>
-    </ul>
 
+    <div class="form-container">
+        <form id="userValidateForm">
+            <label>Username</label>
+            <input type="text" id="username">
+            
+            <label>Password</label>
+            <input type="password" id="password">
+            
+            <button class="confirm-button" type="button" id="confirmButton">Confirm</button>
+        </form>
+    
+        <div class="hidden-home-button" id="homeButton">
+            <a href="/pages/home-hidden-extra-games.html"><button>Home</button></a>
+        </div>
+    </div>
+    
+    
+    <script>
+        async function hashPassword(password) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password);
+            const hash = await crypto.subtle.digest("SHA-256", data);
+            return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+    
+        document.getElementById('confirmButton').addEventListener('click', async function() {
+            var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
+            var hashedPassword = await hashPassword(password);
+    
+            const storedHashedPassword = "bb48538aa54cc633e0e3f29f65b8c1580dbe8dbaa9a6f7dbb46490bdfd4fcd7e"; // Pre-generated hash of "hansaja"
+    
+            if (username === "charuka" && hashedPassword === storedHashedPassword) {
+                alert("Welcome, Charuka!");
+                document.getElementById('homeButton').style.display = "block";
+                document.getElementById('userValidateForm').style.display = "none";
+            } else {
+                alert("Incorrect username or password!");
+            }
+        });
+    </script>
     
     
 </body>
