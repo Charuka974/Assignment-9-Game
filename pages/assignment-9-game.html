@@ -232,11 +232,11 @@
 
     // Background images
     const backgrounds = [
-        "/assets/assignment-9-assets/space5.jpg",
-        "/assets/assignment-9-assets/space4.jpg",
-        "/assets/assignment-9-assets/space3.jpg",
+        "/assets/assignment-9-assets/space1.jpg",
         "/assets/assignment-9-assets/space2.jpg",
-        "/assets/assignment-9-assets/space1.jpg"
+        "/assets/assignment-9-assets/space3.jpg",
+        "/assets/assignment-9-assets/space4.jpg",
+        "/assets/assignment-9-assets/space5.jpg"
     ];
 
     // Set initial values in the HUD
@@ -464,7 +464,7 @@
                     if (enemy.health <= 0) {
                         enemy.element.remove();
                         enemy.active = false;
-                        updateScore(enemy.type === 'enemy1' ? 2 : 1);
+                        updateScore(enemy.type === 'enemy1' ? 1 : 2);
                     }
                 }
             });

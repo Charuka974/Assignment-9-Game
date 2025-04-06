@@ -40,7 +40,7 @@
             z-index: 9;
         }
         
-        #score, #ammo, #health {
+        #score, #ammo, #health, #level {
             font-size: 18px;
             margin-bottom: 10px;
         }
@@ -51,6 +51,7 @@
             background-color: rgba(50, 50, 50, 0.7);
             border-radius: 10px;
             border: 2px solid #222;
+            margin-bottom: 10px;
         }
         
         #healthBar {
@@ -100,17 +101,49 @@
             color: white;
             cursor: pointer;
         }
+
+        #levelSelect {
+            margin-top: 15px;
+            padding: 8px 15px;
+            font-size: 16px;
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #controlsInfo {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #aaa;
+            font-size: 14px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
     <div id="startScreen">
         <h1>HAUNTED FOREST: GHOST HUNTER</h1>
         <p>Survive as long as you can against the supernatural forces in this haunted forest.</p>
-        <p>Controls: WASD to move, Mouse to look, Left Click to shoot</p>
+        <p>Controls: WASD to move, Mouse to look, Left Click to shoot, Space to jump, C to crouch</p>
+        <select id="levelSelect">
+            <option value="1">Level 1 - Beginner</option>
+            <option value="2">Level 2 - Easy</option>
+            <option value="3">Level 3 - Medium</option>
+            <option value="4">Level 4 - Hard</option>
+            <option value="5">Level 5 - Nightmare</option>
+        </select>
         <button id="startButton">START GAME</button>
+        <div id="controlsInfo">
+            Press ESC to exit pointer lock and pause the game
+        </div>
     </div>
     <div id="crosshair"></div>
     <div id="uiOverlay">
+        <div id="level">Level: 1</div>
         <div id="score">Score: 0</div>
         <div id="ammo">Ammo: ∞</div>
         <div id="health">HP: 100</div>
@@ -123,21 +156,89 @@
     <script>
         // Game Configuration
         const GAME_CONFIG = {
-            initialGhostCount: 5,
-            maxGhosts: 15,
+            levels: [
+                { // Level 1
+                    initialGhostCount: 5,
+                    maxGhosts: 10,
+                    ghostSpeed: 0.03,
+                    ghostHealth: 2,
+                    ghostDamage: 5,
+                    ghostSpawnRate: 5000, // ms
+                    scoreThreshold: 10,
+                    fogColor: 0x000000,
+                    fogDensity: 0.05,
+                    skyboxIntensity: 1.0
+                },
+                { // Level 2
+                    initialGhostCount: 8,
+                    maxGhosts: 15,
+                    ghostSpeed: 0.05,
+                    ghostHealth: 3,
+                    ghostDamage: 7,
+                    ghostSpawnRate: 4000,
+                    scoreThreshold: 25,
+                    fogColor: 0x220033,
+                    fogDensity: 0.07,
+                    skyboxIntensity: 0.8
+                },
+                { // Level 3
+                    initialGhostCount: 12,
+                    maxGhosts: 20,
+                    ghostSpeed: 0.07,
+                    ghostHealth: 4,
+                    ghostDamage: 10,
+                    ghostSpawnRate: 3000,
+                    scoreThreshold: 50,
+                    fogColor: 0x330022,
+                    fogDensity: 0.09,
+                    skyboxIntensity: 0.6
+                },
+                { // Level 4
+                    initialGhostCount: 15,
+                    maxGhosts: 25,
+                    ghostSpeed: 0.09,
+                    ghostHealth: 5,
+                    ghostDamage: 12,
+                    ghostSpawnRate: 2000,
+                    scoreThreshold: 100,
+                    fogColor: 0x440011,
+                    fogDensity: 0.11,
+                    skyboxIntensity: 0.4
+                },
+                { // Level 5
+                    initialGhostCount: 20,
+                    maxGhosts: 30,
+                    ghostSpeed: 0.12,
+                    ghostHealth: 6,
+                    ghostDamage: 15,
+                    ghostSpawnRate: 1500,
+                    scoreThreshold: Infinity,
+                    fogColor: 0x550000,
+                    fogDensity: 0.13,
+                    skyboxIntensity: 0.2
+                }
+            ],
             playerMaxHealth: 100,
-            ghostMaxHealth: 2,
             moveSpeed: 0.1,
+            crouchSpeed: 0.05,
+            jumpHeight: 0.15,
             mouseSensitivity: 0.002,
-            worldBounds: 40
+            worldBounds: 40,
+            bulletRange: 100,
+            bulletSpeed: 2
         };
 
         // Game State
         let score = 0;
         let health = GAME_CONFIG.playerMaxHealth;
+        let currentLevel = 0;
         let isGameOver = false;
+        let isPaused = false;
         let isPointerLocked = false;
-        let gun;
+        let isCrouching = false;
+        let normalHeight = 2;
+        let crouchHeight = 1;
+        let lastGhostSpawnTime = 0;
 
         // Set up the scene, camera, and renderer
         const scene = new THREE.Scene();
@@ -147,17 +248,21 @@
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // SKYBOX FIX - Using CubeTextureLoader
+        // Load skybox
         const cubeTextureLoader = new THREE.CubeTextureLoader();
         const skyboxTexture = cubeTextureLoader.load([
             '/assets/ghost-hunter/sky/interstellar_lf.jpg',   // Left
             '/assets/ghost-hunter/sky/interstellar_rt.jpg',   // Right
             '/assets/ghost-hunter/sky/interstellar_up.jpg',   // Up
-            '/assets/ghost-hunter/sky/interstellar_dn.jpg',   // down
+            '/assets/ghost-hunter/sky/interstellar_dn.jpg',   // Down
             '/assets/ghost-hunter/sky/interstellar_ft.jpg',   // Front
-            '/assets/ghost-hunter/sky/interstellar_bk.jpg'   // Back
+            '/assets/ghost-hunter/sky/interstellar_bk.jpg'    // Back
         ]);
         scene.background = skyboxTexture;
+        skyboxTexture.encoding = THREE.sRGBEncoding;
+
+        // Create initial fog
+        scene.fog = new THREE.FogExp2(GAME_CONFIG.levels[0].fogColor, GAME_CONFIG.levels[0].fogDensity);
 
         // Add lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
@@ -180,9 +285,6 @@
         }
         flickerLight();
 
-        // Environment
-        scene.fog = new THREE.Fog(0x000000, 1, 50);
-
         // Ground
         const groundGeometry = new THREE.PlaneGeometry(100, 100);
         const groundMaterial = new THREE.MeshStandardMaterial({ 
@@ -195,50 +297,39 @@
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // Load Tree Model using GLTFLoader
-        const gltfLoader = new THREE.GLTFLoader();
+        // Environment objects (trees and rocks)
         const trees = [];
-
+        const rocks = [];
+        const gltfLoader = new THREE.GLTFLoader();
+        
+        // Create trees
         function loadTree(x, z) {
             gltfLoader.load('/assets/ghost-hunter/floor/Tree1.gltf', (gltf) => {
                 const tree = gltf.scene;
                 tree.scale.set(2, 2, 2);
                 tree.position.set(x, 0, z);
-                tree.castShadow = true;
+                
+                // Enable shadows
+                tree.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+                
                 scene.add(tree);
                 trees.push(tree);
             });
         }
-
-        // Create multiple trees
-        for (let i = 0; i < 20; i++) {
-            loadTree(
-                (Math.random() - 0.5) * GAME_CONFIG.worldBounds * 1.5,
-                (Math.random() - 0.5) * GAME_CONFIG.worldBounds * 1.5
-            );
-        }
-
-        // Load Rock Model using GLTFLoader
-        const rockLoader = new THREE.GLTFLoader();
-        const rocks = [];
-
+        
+        // Create rocks
         function loadRock(x, z) {
-            rockLoader.load('/assets/ghost-hunter/floor/Rock_7.gltf', (gltf) => {
+            gltfLoader.load('/assets/ghost-hunter/floor/Rock_7.gltf', (gltf) => {
                 const rock = gltf.scene;
-                
-                // Set random scale for variety (smaller than trees)
-                const scale = 0.5 + Math.random() * 0.7; // Between 0.5 and 1.2 scale
+                const scale = 0.5 + Math.random() * 0.7;
                 rock.scale.set(scale, scale, scale);
-                
-                // Random rotation for natural look
+                rock.position.set(x, -0.1 + Math.random() * 0.2, z);
                 rock.rotation.y = Math.random() * Math.PI * 2;
-                
-                // Position on ground with slight elevation variation
-                rock.position.set(
-                    x,
-                    -0.1 + Math.random() * 0.2, // Slight vertical variation
-                    z
-                );
                 
                 // Enable shadows
                 rock.traverse((child) => {
@@ -252,41 +343,21 @@
                 rocks.push(rock);
             });
         }
-
-        // Create multiple rocks (more than trees since they're smaller)
+        
+        // Create multiple trees and rocks
+        for (let i = 0; i < 20; i++) {
+            loadTree(
+                (Math.random() - 0.5) * GAME_CONFIG.worldBounds * 1.5,
+                (Math.random() - 0.5) * GAME_CONFIG.worldBounds * 1.5
+            );
+        }
+        
         for (let i = 0; i < 25; i++) {
             loadRock(
                 (Math.random() - 0.5) * GAME_CONFIG.worldBounds * 1.5,
                 (Math.random() - 0.5) * GAME_CONFIG.worldBounds * 1.5
             );
         }
-
-        // Load Gun Model
-        const gunLoader = new THREE.GLTFLoader();
-        gunLoader.load('/assets/ghost-hunter/weapons/KSR28_Sniperrifle_Blender-2.8_Version.glb', (gltf) => {
-            gun = gltf.scene;
-            
-            // Scale and position the gun
-            gun.scale.set(1, 1, 1);
-            gun.position.set(0.5, -0.5, -1.5);
-            gun.rotation.set(0, Math.PI, 0);
-            
-            
-            // Enable shadows
-            gun.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                }
-            });
-            
-            
-            // const light = new THREE.DirectionalLight(0xffffff, 1);
-            // light.position.set(2, 4, 5);
-            // scene.add(light);
-            // Add gun to camera so it moves with the view
-            camera.add(gun);
-        });
-
         
         // Ghost Management
         const ghosts = [];
@@ -294,38 +365,92 @@
         const ghostMaterial = new THREE.MeshStandardMaterial({ 
             color: 0xdddddd,
             transparent: true,
-            opacity: 0.9
+            opacity: 0.9,
+            emissive: 0x8888ff,
+            emissiveIntensity: 0.5
         });
 
         function createGhost() {
-            if (ghosts.length >= GAME_CONFIG.maxGhosts) return;
+            const levelConfig = GAME_CONFIG.levels[currentLevel];
+            
+            if (ghosts.length >= levelConfig.maxGhosts) return;
             
             const ghost = new THREE.Mesh(ghostGeometry, ghostMaterial.clone());
             ghost.castShadow = true;
-            ghost.position.set(
-                (Math.random() - 0.5) * GAME_CONFIG.worldBounds,
-                1,
-                (Math.random() - 0.5) * GAME_CONFIG.worldBounds
-            );
             
-            ghost.velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 0.05,
-                0,
-                (Math.random() - 0.5) * 0.05
-            );
+            // Position ghost at random edge of the map
+            const edge = Math.floor(Math.random() * 4);
+            let x, z;
             
+            switch(edge) {
+                case 0: // North
+                    x = (Math.random() - 0.5) * GAME_CONFIG.worldBounds;
+                    z = -GAME_CONFIG.worldBounds;
+                    break;
+                case 1: // East
+                    x = GAME_CONFIG.worldBounds;
+                    z = (Math.random() - 0.5) * GAME_CONFIG.worldBounds;
+                    break;
+                case 2: // South
+                    x = (Math.random() - 0.5) * GAME_CONFIG.worldBounds;
+                    z = GAME_CONFIG.worldBounds;
+                    break;
+                case 3: // West
+                    x = -GAME_CONFIG.worldBounds;
+                    z = (Math.random() - 0.5) * GAME_CONFIG.worldBounds;
+                    break;
+            }
             
-            ghost.health = GAME_CONFIG.ghostMaxHealth;
-            ghost.damage = 10;
+            ghost.position.set(x, 1, z);
+            ghost.health = levelConfig.ghostHealth;
+            ghost.damage = levelConfig.ghostDamage;
             
             scene.add(ghost);
             ghosts.push(ghost);
         }
         
-
-        // Initial ghost spawn
-        for (let i = 0; i < GAME_CONFIG.initialGhostCount; i++) {
-            createGhost();
+        // Bullet Management
+        const bullets = [];
+        
+        function createBullet() {
+            const bulletGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+            const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+            
+            // Position bullet at camera position
+            bullet.position.copy(camera.position);
+            
+            // Set bullet direction based on camera orientation
+            const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            bullet.userData.velocity = direction.clone().normalize().multiplyScalar(GAME_CONFIG.bulletSpeed);
+            bullet.userData.distance = 0;
+            
+            scene.add(bullet);
+            bullets.push(bullet);
+            
+            // Muzzle flash effect
+            const muzzleFlash = new THREE.PointLight(0xff6600, 5, 2);
+            muzzleFlash.position.copy(camera.position);
+            scene.add(muzzleFlash);
+            
+            // Remove muzzle flash after short time
+            setTimeout(() => {
+                scene.remove(muzzleFlash);
+            }, 50);
+            
+            // Bullet tracer
+            const tracerGeometry = new THREE.BufferGeometry().setFromPoints([
+                camera.position,
+                camera.position.clone().add(direction.clone().multiplyScalar(5))
+            ]);
+            const tracerMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
+            const tracer = new THREE.Line(tracerGeometry, tracerMaterial);
+            scene.add(tracer);
+            
+            // Remove tracer after short time
+            setTimeout(() => {
+                scene.remove(tracer);
+            }, 100);
         }
 
         // Player Movement and Controls
@@ -333,20 +458,21 @@
             moveForward: false,
             moveBackward: false,
             moveLeft: false,
-            moveRight: false
+            moveRight: false,
+            jump: false,
+            crouch: false
         };
 
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
 
         // Camera and Player Setup
-        camera.position.set(0, 2, 0);
+        camera.position.set(0, normalHeight, 0);
         camera.rotation.order = 'YXZ';
 
         // Player Movement Physics
         let isOnGround = true;
         const gravity = -0.005;
-        let canJump = true;
 
         // Input Handling
         document.addEventListener('keydown', (e) => {
@@ -356,10 +482,19 @@
                 case 'KeyA': controls.moveLeft = true; break;
                 case 'KeyD': controls.moveRight = true; break;
                 case 'Space': 
-                    if (canJump) {
-                        velocity.y = 0.15;
-                        canJump = false;
+                    if (isOnGround) {
+                        controls.jump = true;
                         isOnGround = false;
+                    }
+                    break;
+                case 'KeyC': 
+                    controls.crouch = true;
+                    camera.position.y = crouchHeight;
+                    break;
+                case 'Escape':
+                    if (isPointerLocked) {
+                        document.exitPointerLock();
+                        isPaused = true;
                     }
                     break;
             }
@@ -371,6 +506,12 @@
                 case 'KeyS': controls.moveBackward = false; break;
                 case 'KeyA': controls.moveLeft = false; break;
                 case 'KeyD': controls.moveRight = false; break;
+                case 'Space': controls.jump = false; break;
+                case 'KeyC': 
+                    controls.crouch = false;
+                    if (!isOnGround) break; // Only stand up if on ground
+                    camera.position.y = normalHeight;
+                    break;
             }
         });
 
@@ -378,7 +519,7 @@
         let mouseX = 0, mouseY = 0;
 
         document.addEventListener('mousemove', (e) => {
-            if (isPointerLocked) {
+            if (isPointerLocked && !isPaused) {
                 mouseX -= e.movementX * GAME_CONFIG.mouseSensitivity;
                 mouseY -= e.movementY * GAME_CONFIG.mouseSensitivity;
                 
@@ -396,132 +537,198 @@
 
         // Shooting Mechanic
         function shoot() {
-            if (!isPointerLocked || !gun) return;
+            if (!isPointerLocked || isPaused) return;
             
-            const shootRaycaster = new THREE.Raycaster();
-            shootRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-
-            // Visual shooting effect (muzzle flash)
-            const muzzleFlash = new THREE.PointLight(0xff6600, 5, 2);
-            
-            // Position muzzle flash at gun barrel
-            const barrelPosition = new THREE.Vector3(0, 0, 0);
-            if (gun) {
-                // Find the barrel or use a default position
-                const barrel = gun.getObjectByName('Barrel') || gun;
-                barrel.getWorldPosition(barrelPosition);
-            }
-            
-            muzzleFlash.position.copy(barrelPosition);
-            scene.add(muzzleFlash);
-            
-            // Gun recoil animation
-            if (gun) {
-                gun.position.z += 0.1;
-                setTimeout(() => {
-                    gun.position.z -= 0.1;
-                }, 100);
-            }
-            
-            // Bullet tracer
-            const bulletDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-            const bulletEnd = bulletDirection.clone().multiplyScalar(100).add(camera.position);
-            
-            const bulletGeometry = new THREE.BufferGeometry().setFromPoints([
-                barrelPosition,
-                bulletEnd
-            ]);
-            
-            const bulletMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
-            const bullet = new THREE.Line(bulletGeometry, bulletMaterial);
-            scene.add(bullet);
-            
-            // Remove effects after short time
-            setTimeout(() => {
-                scene.remove(muzzleFlash);
-                scene.remove(bullet);
-            }, 50);
-            
-            // Check for ghost hits
-            ghosts.forEach((ghost, index) => {
-                const ghostIntersects = shootRaycaster.intersectObject(ghost);
-                
-                if (ghostIntersects.length > 0) {
-                    ghost.health--;
-                    
-                    if (ghost.health <= 0) {
-                        createExplosion(ghost.position);
-                        scene.remove(ghost);
-                        ghosts.splice(index, 1);
-                        score++;
-                        document.getElementById("score").innerText = `Score: ${score}`;
-                        createGhost();
-                    }
-
-                }
-            });
+            createBullet();
         }
 
         // Handle mouse click
-        document.addEventListener('click', () => {
+        document.addEventListener('click', (e) => {
             if (!isPointerLocked) {
                 renderer.domElement.requestPointerLock();
                 isPointerLocked = true;
                 document.getElementById('startScreen').style.display = 'none';
+                isPaused = false;
                 return;
             }
             
-            shoot();
+            if (!isPaused) {
+                shoot();
+            }
         });
 
         // Pointer Lock Events
         document.addEventListener('pointerlockchange', () => {
             isPointerLocked = document.pointerLockElement === renderer.domElement;
+            if (isPointerLocked) {
+                isPaused = false;
+            } else {
+                isPaused = true;
+            }
         });
 
         // Game Over / Restart
         document.getElementById('gameOverMessage').addEventListener('click', () => {
             if (isGameOver) {
-                // Clear existing ghosts
-                ghosts.forEach(ghost => scene.remove(ghost));
-                ghosts.length = 0;
-                
-                // Reset game state
-                score = 0;
-                health = GAME_CONFIG.playerMaxHealth;
-                isGameOver = false;
-                
-                document.getElementById('score').innerText = 'Score: 0';
-                document.getElementById('health').innerText = `HP: ${health}`;
-                document.getElementById('healthBar').style.width = '100%';
-                document.getElementById('gameOverMessage').style.display = 'none';
-                
-                // Respawn initial ghosts
-                for (let i = 0; i < GAME_CONFIG.initialGhostCount; i++) {
-                    createGhost();
-                }
-                
-                camera.position.set(0, 2, 0);
-                renderer.domElement.requestPointerLock();
+                resetGame();
             }
         });
 
         // Start button
         document.getElementById('startButton').addEventListener('click', () => {
+            currentLevel = parseInt(document.getElementById('levelSelect').value) - 1;
+            document.getElementById('level').innerText = `Level: ${currentLevel + 1}`;
             renderer.domElement.requestPointerLock();
             isPointerLocked = true;
             document.getElementById('startScreen').style.display = 'none';
+            resetGame();
         });
+
+        function updateLevelEnvironment() {
+            const levelConfig = GAME_CONFIG.levels[currentLevel];
+            
+            // Update fog
+            scene.fog.color.setHex(levelConfig.fogColor);
+            scene.fog.density = levelConfig.fogDensity;
+            
+            // Update skybox intensity
+            skyboxTexture.encoding = THREE.sRGBEncoding;
+            scene.background = skyboxTexture;
+            scene.backgroundIntensity = levelConfig.skyboxIntensity;
+        }
+
+        function resetGame() {
+            // Clear existing ghosts and bullets
+            ghosts.forEach(ghost => scene.remove(ghost));
+            bullets.forEach(bullet => scene.remove(bullet));
+            ghosts.length = 0;
+            bullets.length = 0;
+            
+            // Reset game state
+            score = 0;
+            health = GAME_CONFIG.playerMaxHealth;
+            isGameOver = false;
+            isPaused = false;
+            
+            document.getElementById('score').innerText = 'Score: 0';
+            document.getElementById('health').innerText = `HP: ${health}`;
+            document.getElementById('healthBar').style.width = '100%';
+            document.getElementById('gameOverMessage').style.display = 'none';
+            
+            // Update environment for current level
+            updateLevelEnvironment();
+            
+            // Respawn initial ghosts
+            const levelConfig = GAME_CONFIG.levels[currentLevel];
+            for (let i = 0; i < levelConfig.initialGhostCount; i++) {
+                createGhost();
+            }
+            
+            // Reset player position and state
+            camera.position.set(0, normalHeight, 0);
+            mouseX = 0;
+            mouseY = 0;
+            camera.rotation.set(0, 0, 0);
+            velocity.set(0, 0, 0);
+            isCrouching = false;
+            isOnGround = true;
+            
+            lastGhostSpawnTime = Date.now();
+            
+            if (!isPointerLocked) {
+                renderer.domElement.requestPointerLock();
+            }
+        }
+
+        function checkLevelUp() {
+            const levelConfig = GAME_CONFIG.levels[currentLevel];
+            if (score >= levelConfig.scoreThreshold && currentLevel < GAME_CONFIG.levels.length - 1) {
+                currentLevel++;
+                document.getElementById('level').innerText = `Level: ${currentLevel + 1}`;
+                updateLevelEnvironment();
+                
+                // Spawn some extra ghosts when leveling up
+                const newLevelConfig = GAME_CONFIG.levels[currentLevel];
+                for (let i = 0; i < newLevelConfig.initialGhostCount; i++) {
+                    createGhost();
+                }
+            }
+        }
+
+        function createExplosion(position) {
+            // Create particle explosion
+            const particleCount = 15;
+            const particles = [];
+            
+            for (let i = 0; i < particleCount; i++) {
+                const size = 0.2 + Math.random() * 0.3;
+                const geometry = new THREE.SphereGeometry(size, 8, 8);
+                const material = new THREE.MeshStandardMaterial({
+                    color: 0xdddddd,
+                    emissive: 0x8888ff,
+                    emissiveIntensity: 0.8,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                
+                const particle = new THREE.Mesh(geometry, material);
+                particle.position.copy(position);
+                
+                // Random velocity for explosion effect
+                particle.userData = {
+                    velocity: new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.2,
+                        (Math.random() - 0.5) * 0.2,
+                        (Math.random() - 0.5) * 0.2
+                    ),
+                    lifetime: 0
+                };
+                
+                scene.add(particle);
+                particles.push(particle);
+            }
+            
+            // Animate particles
+            function animateParticles() {
+                let allRemoved = true;
+                
+                for (let i = 0; i < particles.length; i++) {
+                    const particle = particles[i];
+                    
+                    if (particle) {
+                        particle.userData.lifetime++;
+                        particle.position.add(particle.userData.velocity);
+                        particle.material.opacity = 0.8 - (particle.userData.lifetime / 50);
+                        
+                        // Remove particle after lifetime expires
+                        if (particle.userData.lifetime > 50) {
+                            scene.remove(particle);
+                            particles[i] = null;
+                        } else {
+                            allRemoved = false;
+                        }
+                    }
+                }
+                
+                if (!allRemoved) {
+                    requestAnimationFrame(animateParticles);
+                }
+            }
+            
+            animateParticles();
+        }
 
         // Game Loop
         function animate() {
             requestAnimationFrame(animate);
 
+            if (isPaused || isGameOver) return;
+
             // Update camera rotation
             camera.rotation.y = mouseX;
             camera.rotation.x = mouseY;
 
-            // FIXED MOVEMENT - Now relative to camera direction
+            // Movement relative to camera direction
             const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
             const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
             
@@ -529,23 +736,30 @@
             velocity.x = 0;
             velocity.z = 0;
             
+            // Get current speed (normal or crouch speed)
+            const currentSpeed = controls.crouch ? GAME_CONFIG.crouchSpeed : GAME_CONFIG.moveSpeed;
+            
             // Movement relative to camera direction
-            if (controls.moveForward) velocity.add(forward.clone().multiplyScalar(GAME_CONFIG.moveSpeed));
-            if (controls.moveBackward) velocity.add(forward.clone().multiplyScalar(-GAME_CONFIG.moveSpeed));
-            if (controls.moveLeft) velocity.add(right.clone().multiplyScalar(-GAME_CONFIG.moveSpeed));
-            if (controls.moveRight) velocity.add(right.clone().multiplyScalar(GAME_CONFIG.moveSpeed));
+            if (controls.moveForward) velocity.add(forward.clone().multiplyScalar(currentSpeed));
+            if (controls.moveBackward) velocity.add(forward.clone().multiplyScalar(-currentSpeed));
+            if (controls.moveLeft) velocity.add(right.clone().multiplyScalar(-currentSpeed));
+            if (controls.moveRight) velocity.add(right.clone().multiplyScalar(currentSpeed));
+
+            // Apply jump
+            if (controls.jump && isOnGround) {
+                velocity.y = GAME_CONFIG.jumpHeight;
+                isOnGround = false;
+                controls.jump = false;
+            }
 
             // Apply gravity
             velocity.y += gravity;
 
             // Ground collision
-            if (camera.position.y <= 2) {
-                camera.position.y = 2;
+            if (camera.position.y <= (controls.crouch ? crouchHeight : normalHeight)) {
+                camera.position.y = controls.crouch ? crouchHeight : normalHeight;
                 velocity.y = 0;
-                canJump = true;
                 isOnGround = true;
-            } else {
-                isOnGround = false;
             }
 
             // Apply velocity
@@ -557,20 +771,62 @@
             camera.position.z = Math.max(-GAME_CONFIG.worldBounds, 
                 Math.min(GAME_CONFIG.worldBounds, camera.position.z));
 
+            // Update bullets
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                bullet.position.add(bullet.userData.velocity);
+                bullet.userData.distance += GAME_CONFIG.bulletSpeed;
+                
+                // Check for ghost hits
+                for (let j = ghosts.length - 1; j >= 0; j--) {
+                    const ghost = ghosts[j];
+                    const distance = bullet.position.distanceTo(ghost.position);
+                    
+                    if (distance < 1) { // Hit detection
+                        ghost.health--;
+                        
+                        if (ghost.health <= 0) {
+                            createExplosion(ghost.position);
+                            scene.remove(ghost);
+                            ghosts.splice(j, 1);
+                            score++;
+                            document.getElementById("score").innerText = `Score: ${score}`;
+                            checkLevelUp();
+                        }
+                        
+                        scene.remove(bullet);
+                        bullets.splice(i, 1);
+                        break;
+                    }
+                }
+                
+                // Remove bullet if it's traveled too far
+                if (bullet.userData.distance > GAME_CONFIG.bulletRange) {
+                    scene.remove(bullet);
+                    bullets.splice(i, 1);
+                }
+            }
+
             // Ghost movement and player interaction
-            ghosts.forEach((ghost, index) => {
-                // Ghost movement
-                ghost.position.add(ghost.velocity);
-
-                // Boundary checking for ghosts
-                if (Math.abs(ghost.position.x) > GAME_CONFIG.worldBounds) 
-                    ghost.velocity.x *= -1;
-                if (Math.abs(ghost.position.z) > GAME_CONFIG.worldBounds) 
-                    ghost.velocity.z *= -1;
-
+            const levelConfig = GAME_CONFIG.levels[currentLevel];
+            
+            // Spawn new ghosts periodically
+            const now = Date.now();
+            if (now - lastGhostSpawnTime > levelConfig.ghostSpawnRate && ghosts.length < levelConfig.maxGhosts) {
+                createGhost();
+                lastGhostSpawnTime = now;
+            }
+            
+            for (let i = ghosts.length - 1; i >= 0; i--) {
+                const ghost = ghosts[i];
+                
+                // Ghost movement toward player
+                const direction = new THREE.Vector3().subVectors(camera.position, ghost.position).normalize();
+                ghost.position.add(direction.multiplyScalar(levelConfig.ghostSpeed));
+                
                 // Player-ghost collision detection
                 const distance = camera.position.distanceTo(ghost.position);
-                if (distance < 2) {
+                if (distance < 1.5) {
                     // Damage player on close contact
                     health = Math.max(0, health - ghost.damage);
                     document.getElementById('health').innerText = `HP: ${health}`;
@@ -582,55 +838,11 @@
                         document.exitPointerLock();
                     }
                 }
-            });
+            }
             
             // Render the scene
             renderer.render(scene, camera);
         }
-
-        function createExplosion(position) {
-            for (let i = 0; i < 10; i++) {
-                const particle = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.2, 32, 32),
-
-                    new THREE.MeshStandardMaterial({ 
-                        color: 0x660000,      // Dark Blood Red
-                        emissive: 0x330000,   // Deep Red Glow (Darker and more ominous)
-                        emissiveIntensity: 2, // Increase glow intensity
-                        transparent: true,
-                        opacity: 0.8          // Slight transparency for a smoky effect
-                    })
-                );
-                particle.position.copy(position);
-                
-                // Give particles a random velocity
-                const velocity = new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.5,
-                    (Math.random() - 0.5) * 0.5,
-                    (Math.random() - 0.5) * 0.5
-                );
-
-                scene.add(particle);
-
-                // Animate the particles
-                let explosionTime = 0;
-                function animateExplosion() {
-                    if (explosionTime > 100) {
-                        scene.remove(particle);
-                        return;
-                    }
-                    explosionTime++;
-                    particle.position.add(velocity);
-
-                    // Gradually fade out
-                    particle.material.opacity = Math.max(0, 0.8 - explosionTime * 0.008);
-
-                    requestAnimationFrame(animateExplosion);
-                }
-                animateExplosion();
-            }
-        }
-
 
         // Start the game loop
         animate();
@@ -641,8 +853,6 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
-
     </script>
 </body>
 </html>
