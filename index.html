@@ -4,8 +4,79 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Assignment 9 Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet">
 
     <style>
+        body {
+            margin: 0;
+            font-family: 'Orbitron', sans-serif;
+            background-color: black;
+            overflow: hidden;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .game-welcome-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .game-link {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .game-link img {
+            width: 90vw;
+            max-width: 1000px;
+            height: auto;
+            border: 4px solid cyan;
+            border-radius: 20px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 0 20px cyan;
+        }
+
+        .game-link img:hover {
+            transform: scale(1.03);
+            box-shadow: 0 0 30px deepskyblue;
+        }
+
+        .game-name {
+            position: absolute;
+            bottom: 40px;
+            background: rgba(0, 255, 255, 0.2);
+            color: white;
+            font-size: 3rem;
+            padding: 15px 40px;
+            border: 2px solid cyan;
+            border-radius: 15px;
+            text-shadow: 0 0 10px cyan;
+            transition: background 0.3s ease, transform 0.2s ease;
+            z-index: 2;
+        }
+
+        .game-name:hover {
+            background: rgba(0, 255, 255, 0.4);
+            transform: scale(1.05);
+        }
+
+        .game-name:active {
+            background-color: cyan;
+            color: black;
+        }
+
+
         .hidden-home-button {
             display: none;
         }
@@ -24,6 +95,7 @@
         .form-container:hover{
             transform: translateX(0px);
             transform: translateY(0px);
+            box-shadow: 5px 5px 10px white;
         }
         .form-container form {
             color: white;
@@ -38,20 +110,27 @@
 </head>
 <body>
 
+    <div class="game-welcome-container">
+        <a class="game-link" href="/pages/assignment-9-game.html"> 
+            <img src="/assets/assignment-9-assets/wallpaperflare.com_wallpaper (1).jpg" alt="Celestial Warzone">
+            <span class="game-name">Celestial Warzone</span>
+        </a>
+    </div>
+
 
     <div class="form-container">
         <form id="userValidateForm">
             <label>Username</label>
-            <input type="text" id="username">
+            <input type="text" id="username" placeholder="username">
             
             <label>Password</label>
-            <input type="password" id="password">
+            <input type="password" id="password" placeholder="password">
             
             <button class="confirm-button" type="button" id="confirmButton">Confirm</button>
         </form>
     
         <div class="hidden-home-button" id="homeButton">
-            <a href="/pages/home-hidden-extra-games.html"><button>Home</button></a>
+            <a href="/pages/extra/home-hidden-extra-games.html"><button>Home</button></a>
         </div>
     </div>
     
