@@ -1,6 +1,6 @@
     // Game state
     let score = 0;
-    let ammo = 200; // ammo for every level
+    let ammo = 100;
     let health = 100;
     let level = 1;
     let gameActive = true;
@@ -44,7 +44,7 @@
     let playerY = window.innerHeight - 80;
     const playerWidth = 60;
     const playerHeight = 60;
-    let moveSpeed = 10;
+    let moveSpeed = 5;
 
     // Update player position function
     function updatePlayerPosition() {
@@ -250,7 +250,7 @@
                     if (enemy.health <= 0) {
                         enemy.element.remove();
                         enemy.active = false;
-                        updateScore(enemy.type === 'enemy1' ? 10 : 20); // Update score based on enemy type
+                        updateScore(enemy.type === 'enemy1' ? 10 : 20); // score for shooting enemy
                     }
                 }
             });
@@ -316,7 +316,7 @@
         enemies = [];
         bullets = [];
         score = 0;
-        ammo = 200; // ammo for every level
+        ammo = 100;
         health = 100;
         level = 1;
         
@@ -359,3 +359,124 @@
         setBackground(level);
         updatePlayerPosition();
     });
+
+    // Mobile Controls Implementation
+    const joystick = document.getElementById("joystick");
+    const joystickWrapper = document.getElementById("joystick-wrapper");
+    const shootButton = document.getElementById("shootButton");
+    
+    let joystickActive = false;
+    let joystickOrigin = { x: 0, y: 0 };
+    let joystickPosition = { x: 0, y: 0 };
+    const joystickMaxDistance = 40;
+    
+    // Set up joystick event listeners
+    joystickWrapper.addEventListener("touchstart", handleJoystickStart);
+    joystickWrapper.addEventListener("touchmove", handleJoystickMove);
+    joystickWrapper.addEventListener("touchend", handleJoystickEnd);
+    
+    joystickWrapper.addEventListener("mousedown", handleJoystickStart);
+    document.addEventListener("mousemove", handleJoystickMove);
+    document.addEventListener("mouseup", handleJoystickEnd);
+    
+    // Set up shoot button event listeners
+    shootButton.addEventListener("touchstart", handleShootStart);
+    shootButton.addEventListener("touchend", handleShootEnd);
+    shootButton.addEventListener("mousedown", handleShootStart);
+    shootButton.addEventListener("mouseup", handleShootEnd);
+    
+    function handleJoystickStart(e) {
+        if (!gameActive) return;
+        
+        joystickActive = true;
+        const rect = joystickWrapper.getBoundingClientRect();
+        joystickOrigin.x = rect.left + rect.width / 2;
+        joystickOrigin.y = rect.top + rect.height / 2;
+        
+        // For touch events
+        if (e.touches) {
+            const touch = e.touches[0];
+            joystickPosition.x = touch.clientX;
+            joystickPosition.y = touch.clientY;
+        } else {
+            // For mouse events
+            joystickPosition.x = e.clientX;
+            joystickPosition.y = e.clientY;
+        }
+        
+        updateJoystickPosition();
+    }
+    
+    function handleJoystickMove(e) {
+        if (!joystickActive || !gameActive) return;
+        
+        if (e.touches) {
+            const touch = e.touches[0];
+            joystickPosition.x = touch.clientX;
+            joystickPosition.y = touch.clientY;
+        } else {
+            joystickPosition.x = e.clientX;
+            joystickPosition.y = e.clientY;
+        }
+        
+        updateJoystickPosition();
+    }
+    
+    function handleJoystickEnd() {
+        joystickActive = false;
+        joystick.style.transform = "translate(0, 0)";
+    }
+    
+    function updateJoystickPosition() {
+        const dx = joystickPosition.x - joystickOrigin.x;
+        const dy = joystickPosition.y - joystickOrigin.y;
+        
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+        
+        const limitedDistance = Math.min(distance, joystickMaxDistance);
+        
+        const moveX = Math.cos(angle) * limitedDistance;
+        const moveY = Math.sin(angle) * limitedDistance;
+        
+        joystick.style.transform = `translate(${moveX}px, ${moveY}px)`;
+        
+        // Update player movement based on joystick position
+        const normalizedX = moveX / joystickMaxDistance;
+        const normalizedY = moveY / joystickMaxDistance;
+        
+        // Apply movement to player
+        playerX += normalizedX * moveSpeed;
+        playerY += normalizedY * moveSpeed;
+        
+        // Ensure player stays within bounds
+        playerX = Math.max(playerWidth/2, Math.min(playerX, window.innerWidth - playerWidth/2));
+        playerY = Math.max(playerHeight/2, Math.min(playerY, window.innerHeight - playerHeight/2));
+        
+        updatePlayerPosition();
+    }
+    
+    function handleShootStart(e) {
+        if (!gameActive) return;
+        e.preventDefault(); // Prevent touch events from causing page scroll
+        
+        if (ammo > 0) {
+            shootBullet();
+            ammo -= 1;
+            document.getElementById("ammoValue").innerText = ammo;
+        }
+    }
+    
+    function handleShootEnd(e) {
+        e.preventDefault();
+    }
+    
+    // Detect if the device is touch capable
+    function isTouchDevice() {
+        return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
+    }
+    
+    // Show controls only on touch devices
+    if (isTouchDevice()) {
+        document.getElementById("controls").style.display = "flex";
+    }

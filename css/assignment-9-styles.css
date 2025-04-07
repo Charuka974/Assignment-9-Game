@@ -160,11 +160,94 @@ body {
     cursor: pointer;
 }
 
+/* Joystick and Shoot Button Styles */
+#controls {
+    position: absolute;
+    bottom: 20px;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    box-sizing: border-box;
+    z-index: 3;
+}
+
+#joystick-wrapper {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    background: rgba(25, 196, 56, 0.2);
+    border-radius: 50%;
+    border: 2px solid #19c438;
+    touch-action: none;
+}
+
+#joystick {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    background: rgba(25, 196, 56, 0.7);
+    border-radius: 50%;
+    top: 35px;
+    left: 35px;
+    transition: transform 0.1s;
+    box-shadow: 0 0 10px rgba(25, 196, 56, 0.5);
+    border: 1px solid #a0f0b0;
+}
+
+#shootButton {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255, 50, 50, 0.3);
+    border: 2px solid rgba(255, 100, 100, 0.8);
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    -webkit-user-select: none;
+    user-select: none;   
+    box-shadow: 0 0 15px rgba(255, 100, 100, 0.5);
+    touch-action: none;
+}
+
+#shootButton:active {
+    background: rgba(255, 50, 50, 0.6);
+    transform: scale(0.95);
+}
+
+/* Hide controls on desktop if not touch device */
+@media (hover: hover) and (pointer: fine) {
+    #controls {
+        display: none;
+    }
+}
+
 @media (max-width: 600px) {
     .dashboard-value {
         font-size: 14px;
     }
     .health-bar {
         width: 80px;
+    }
+    
+    #joystick-wrapper {
+        width: 100px;
+        height: 100px;
+    }
+    
+    #joystick {
+        width: 40px;
+        height: 40px;
+        top: 30px;
+        left: 30px;
+    }
+    
+    #shootButton {
+        width: 70px;
+        height: 70px;
+        font-size: 14px;
     }
 }
