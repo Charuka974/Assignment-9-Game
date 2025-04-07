@@ -1,0 +1,170 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+body {
+    background-color: #000;
+    font-family: 'Arial', sans-serif;
+}
+
+#gameContainer {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+#dashboard {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 10px;
+    box-sizing: border-box;
+    z-index: 2;
+    border-bottom: 2px solid #19c438;
+}
+
+.dashboard-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.dashboard-label {
+    font-size: 12px;
+    color: #19c438;
+    margin-bottom: 2px;
+}
+
+.dashboard-value {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.health-bar {
+    width: 100px;
+    height: 10px;
+    background-color: #333;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-top: 4px;
+}
+
+.health-fill {
+    height: 100%;
+    background-color: #19c438;
+    transition: width 0.3s ease;
+}
+
+.background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    background-size: cover;
+    background-position: center;
+}
+
+.player {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background-image: url("/assets/assignment-9-assets/player.png");
+    background-size: cover;
+    z-index: 1;
+}
+
+.bullet {
+    position: absolute;
+    width: 8px;
+    height: 30px;
+    background: linear-gradient(to top, #19c438, #a0f0b0);
+    border-radius: 4px;
+    z-index: 1;
+    box-shadow: 0 0 10px #19c438;
+    transform-origin: center bottom;
+    animation: beamPulse 0.1s infinite alternate;
+}
+
+@keyframes beamPulse {
+    from { box-shadow: 0 0 5px #19c438; }
+    to { box-shadow: 0 0 15px #19c438; }
+}
+
+.enemy {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background-size: cover;
+    z-index: 1;
+}
+
+.enemy1 {
+    background-image: url("/assets/assignment-9-assets/enemy1.png");
+}
+
+.enemy2 {
+    background-image: url("/assets/assignment-9-assets/enemy2.png");
+}
+
+.explosion {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background-size: cover;
+    z-index: 2;
+    animation: explode 0.5s forwards;
+}
+
+@keyframes explode {
+    0% { transform: scale(0.5); opacity: 1; }
+    100% { transform: scale(2); opacity: 0; }
+}
+
+#gameOver {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    font-size: 2em;
+}
+
+#restartButton {
+    margin-top: 20px;
+    padding: 10px 20px;
+    background-color: #19c438;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 1em;
+    cursor: pointer;
+}
+
+@media (max-width: 600px) {
+    .dashboard-value {
+        font-size: 14px;
+    }
+    .health-bar {
+        width: 80px;
+    }
+}

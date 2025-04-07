@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Single-Player Fighting Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #222;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 400px;
+            margin: 20px auto;
+            background: linear-gradient(to bottom, #87CEEB, #1E90FF);
+            border: 4px solid #444;
+            overflow: hidden;
+        }
+        
+        #ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 40px;
+            background: #4a3;
+            border-top: 2px solid #2a2;
+        }
+        
+        .fighter {
+            position: absolute;
+            width: 80px;
+            height: 150px;
+            bottom: 40px;
+            transition: transform 0.1s;
+        }
+        
+        #player {
+            left: 200px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 150"><rect x="20" y="10" width="40" height="30" rx="5" fill="%23c33"/><rect x="25" y="40" width="30" height="60" fill="%23363"/><rect x="10" y="50" width="10" height="40" fill="%23363"/><rect x="60" y="50" width="10" height="40" fill="%23363"/><rect x="20" y="100" width="10" height="40" fill="%23363"/><rect x="50" y="100" width="10" height="40" fill="%23363"/></svg>');
+            transform: scaleX(1);
+        }
+        
+        #enemy {
+            right: 200px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 150"><rect x="20" y="10" width="40" height="30" rx="5" fill="%23f80"/><rect x="25" y="40" width="30" height="60" fill="%23633"/><rect x="10" y="50" width="10" height="40" fill="%23633"/><rect x="60" y="50" width="10" height="40" fill="%23633"/><rect x="20" y="100" width="10" height="40" fill="%23633"/><rect x="50" y="100" width="10" height="40" fill="%23633"/></svg>');
+            transform: scaleX(-1);
+        }
+        
+        .health-bar {
+            position: absolute;
+            top: 10px;
+            height: 20px;
+            background: #f33;
+            border: 2px solid #000;
+        }
+        
+        #health-player {
+            left: 20px;
+            width: 200px;
+        }
+        
+        #health-enemy {
+            right: 20px;
+            width: 200px;
+        }
+        
+        .health-fill {
+            height: 100%;
+            background: #3f3;
+            width: 100%;
+            transition: width 0.3s;
+        }
+        
+        #controls {
+            text-align: center;
+            color: white;
+            margin-top: 20px;
+        }
+        
+        #winner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: gold;
+            text-shadow: 3px 3px 0 #000;
+            display: none;
+            z-index: 10;
+        }
+        
+        #restart {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 20px;
+            background: #4a3;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+            z-index: 10;
+        }
+        
+        .punch-effect {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 0, 0.7);
+            border-radius: 50%;
+            display: none;
+            z-index: 5;
+        }
+        
+        .jumping {
+            animation: jump 0.5s ease-in-out;
+        }
+        
+        .punching {
+            animation: punch 0.2s ease-in-out;
+        }
+        
+        @keyframes jump {
+            0%, 100% { transform: translateY(0) scaleX(1); }
+            50% { transform: translateY(-150px) scaleX(1); }
+        }
+        
+        @keyframes punch {
+            0%, 100% { transform: translateX(0) scaleX(1); }
+            50% { transform: translateX(20px) scaleX(1); }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="ground"></div>
+        <div id="player" class="fighter"></div>
+        <div id="enemy" class="fighter"></div>
+        <div id="health-player" class="health-bar"><div class="health-fill" id="health-fill-player"></div></div>
+        <div id="health-enemy" class="health-bar"><div class="health-fill" id="health-fill-enemy"></div></div>
+        <div id="winner"></div>
+        <button id="restart">Play Again</button>
+        <div id="punch-effect" class="punch-effect"></div>
+    </div>
+    
+    <div id="controls">
+        <h2>Controls</h2>
+        <p>Player: A (left), D (right), W (jump), Space (punch)</p>
+    </div>
+
+    <script>
+        // Game elements
+        const player = document.getElementById('player');
+        const enemy = document.getElementById('enemy');
+        const healthFillPlayer = document.getElementById('health-fill-player');
+        const healthFillEnemy = document.getElementById('health-fill-enemy');
+        const winnerDisplay = document.getElementById('winner');
+        const restartButton = document.getElementById('restart');
+        const punchEffect = document.getElementById('punch-effect');
+        const gameContainer = document.getElementById('game-container');
+
+        // Game state
+        const gameState = {
+            player: {
+                x: 200,
+                y: 0,
+                width: 80,
+                height: 150,
+                speed: 5,
+                health: 100,
+                isJumping: false,
+                isPunching: false,
+                direction: 1, // 1 for right, -1 for left
+                keys: {
+                    left: false,
+                    right: false,
+                    up: false,
+                    punch: false
+                }
+            },
+            enemy: {
+                x: 520, // 800 - 200 - 80
+                y: 0,
+                width: 80,
+                height: 150,
+                speed: 4,
+                health: 100,
+                isJumping: false,
+                isPunching: false,
+                direction: -1, // -1 for left (facing player)
+                aiState: 'approach', // 'approach', 'retreat', 'attack'
+                aiTimer: 0,
+                punchCooldown: false
+            },
+            gameOver: false
+        };
+
+        // Key event listeners
+        document.addEventListener('keydown', (e) => {
+            // Player controls
+            if (e.key === 'a') gameState.player.keys.left = true;
+            if (e.key === 'd') gameState.player.keys.right = true;
+            if (e.key === 'w') gameState.player.keys.up = true;
+            if (e.key === ' ') gameState.player.keys.punch = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            // Player controls
+            if (e.key === 'a') gameState.player.keys.left = false;
+            if (e.key === 'd') gameState.player.keys.right = false;
+            if (e.key === 'w') gameState.player.keys.up = false;
+            if (e.key === ' ') gameState.player.keys.punch = false;
+        });
+
+        // Restart game
+        restartButton.addEventListener('click', () => {
+            resetGame();
+        });
+
+        function resetGame() {
+            gameState.player = {
+                ...gameState.player,
+                x: 200,
+                health: 100,
+                isJumping: false,
+                isPunching: false
+            };
+            
+            gameState.enemy = {
+                ...gameState.enemy,
+                x: 520,
+                health: 100,
+                isJumping: false,
+                isPunching: false,
+                aiState: 'approach',
+                aiTimer: 0,
+                punchCooldown: false
+            };
+            
+            gameState.gameOver = false;
+            
+            healthFillPlayer.style.width = '100%';
+            healthFillEnemy.style.width = '100%';
+            
+            winnerDisplay.style.display = 'none';
+            restartButton.style.display = 'none';
+            
+            updateCharacterPositions();
+        }
+
+        function updateCharacterPositions() {
+            player.style.left = `${gameState.player.x}px`;
+            enemy.style.left = `${gameState.enemy.x}px`;
+        }
+
+        function checkCollision() {
+            const p1 = gameState.player;
+            const p2 = gameState.enemy;
+            
+            // Simple bounding box collision
+            return p1.x < p2.x + p2.width &&
+                   p1.x + p1.width > p2.x &&
+                   p1.y < p2.y + p2.height &&
+                   p1.y + p1.height > p2.y;
+        }
+
+        function showPunchEffect(x, y) {
+            punchEffect.style.left = `${x}px`;
+            punchEffect.style.top = `${y}px`;
+            punchEffect.style.display = 'block';
+            
+            setTimeout(() => {
+                punchEffect.style.display = 'none';
+            }, 200);
+        }
+
+        function handlePunch(attacker, defender, isPlayerAttacking) {
+            if (attacker.isPunching && !attacker.punchCooldown) {
+                // Check if characters are close enough
+                const distance = Math.abs(attacker.x - defender.x);
+                if (distance < 100) {
+                    defender.health -= 10;
+                    showPunchEffect(
+                        attacker.direction === 1 ? attacker.x + attacker.width : attacker.x - 40,
+                        attacker.y + 50
+                    );
+                    
+                    // Update health bar
+                    if (isPlayerAttacking) {
+                        healthFillEnemy.style.width = `${defender.health}%`;
+                    } else {
+                        healthFillPlayer.style.width = `${defender.health}%`;
+                    }
+                    
+                    // Check for knockout
+                    if (defender.health <= 0) {
+                        gameState.gameOver = true;
+                        winnerDisplay.textContent = isPlayerAttacking ? 'You Win!' : 'You Lose!';
+                        winnerDisplay.style.display = 'block';
+                        restartButton.style.display = 'block';
+                    }
+                }
+                
+                attacker.punchCooldown = true;
+                setTimeout(() => {
+                    attacker.punchCooldown = false;
+                }, 500);
+            }
+        }
+
+        function updateEnemyAI() {
+            const e = gameState.enemy;
+            const p = gameState.player;
+            
+            // Update AI state timer
+            e.aiTimer--;
+            if (e.aiTimer <= 0) {
+                // Change AI state randomly
+                const states = ['approach', 'retreat', 'attack'];
+                e.aiState = states[Math.floor(Math.random() * states.length)];
+                e.aiTimer = 30 + Math.floor(Math.random() * 60); // 0.5-1.5 seconds at 60fps
+            }
+            
+            // Execute AI behavior
+            const distance = p.x - e.x;
+            
+            switch (e.aiState) {
+                case 'approach':
+                    // Move toward player
+                    if (distance > 0 && e.x < gameContainer.offsetWidth - e.width) {
+                        e.x += e.speed;
+                        e.direction = 1;
+                        enemy.style.transform = 'scaleX(-1)';
+                    } else if (distance < 0 && e.x > 0) {
+                        e.x -= e.speed;
+                        e.direction = -1;
+                        enemy.style.transform = 'scaleX(-1)';
+                    }
+                    
+                    // Random jump
+                    if (Math.random() < 0.01 && !e.isJumping) {
+                        e.isJumping = true;
+                        enemy.classList.add('jumping');
+                        setTimeout(() => {
+                            enemy.classList.remove('jumping');
+                            e.isJumping = false;
+                        }, 1000);
+                    }
+                    break;
+                    
+                case 'retreat':
+                    // Move away from player
+                    if (distance > 0 && e.x > 0) {
+                        e.x -= e.speed;
+                        e.direction = -1;
+                        enemy.style.transform = 'scaleX(-1)';
+                    } else if (distance < 0 && e.x < gameContainer.offsetWidth - e.width) {
+                        e.x += e.speed;
+                        e.direction = 1;
+                        enemy.style.transform = 'scaleX(-1)';
+                    }
+                    break;
+                    
+                case 'attack':
+                    // Try to punch if close enough
+                    if (Math.abs(distance) < 100 && !e.isPunching && !e.punchCooldown) {
+                        e.isPunching = true;
+                        enemy.classList.add('punching');
+                        setTimeout(() => {
+                            enemy.classList.remove('punching');
+                            e.isPunching = false;
+                        }, 200);
+                    }
+                    break;
+            }
+        }
+
+        function gameLoop() {
+            if (gameState.gameOver) return;
+            
+            const p = gameState.player;
+            const e = gameState.enemy;
+            
+            // Player movement
+            if (p.keys.left && p.x > 0) {
+                p.x -= p.speed;
+                p.direction = -1;
+                player.style.transform = 'scaleX(1)';
+            }
+            if (p.keys.right && p.x < gameContainer.offsetWidth - p.width) {
+                p.x += p.speed;
+                p.direction = 1;
+                player.style.transform = 'scaleX(1)';
+            }
+            if (p.keys.up && !p.isJumping) {
+                p.isJumping = true;
+                player.classList.add('jumping');
+                setTimeout(() => {
+                    player.classList.remove('jumping');
+                    p.isJumping = false;
+                }, 1000);
+            }
+            if (p.keys.punch && !p.isPunching) {
+                p.isPunching = true;
+                player.classList.add('punching');
+                setTimeout(() => {
+                    player.classList.remove('punching');
+                    p.isPunching = false;
+                }, 200);
+            }
+            
+            // Enemy AI
+            updateEnemyAI();
+            
+            // Handle punches
+            handlePunch(p, e, true); // Player attacking enemy
+            handlePunch(e, p, false); // Enemy attacking player
+            
+            updateCharacterPositions();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game
+        resetGame();
+        gameLoop();
+    </script>
+</body>
+</html>

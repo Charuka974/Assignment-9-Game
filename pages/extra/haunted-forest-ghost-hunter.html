@@ -111,6 +111,7 @@
             border: 1px solid #555;
             border-radius: 5px;
             cursor: pointer;
+            z-index: 13; /* Make sure it's above other elements */
         }
 
         #controlsInfo {
@@ -129,7 +130,7 @@
         <h1>HAUNTED FOREST: GHOST HUNTER</h1>
         <p>Survive as long as you can against the supernatural forces in this haunted forest.</p>
         <p>Controls: WASD to move, Mouse to look, Left Click to shoot, Space to jump, C to crouch</p>
-        <select id="levelSelect">
+        <select id="levelSelect" title="Choose difficulty level">
             <option value="1">Level 1 - Beginner</option>
             <option value="2">Level 2 - Easy</option>
             <option value="3">Level 3 - Medium</option>
@@ -542,8 +543,11 @@
             createBullet();
         }
 
-        // Handle mouse click
+        // Handle mouse click - modified to ignore clicks on level select
         document.addEventListener('click', (e) => {
+            // Ignore clicks on the level select dropdown
+            if (e.target.id === 'levelSelect') return;
+            
             if (!isPointerLocked) {
                 renderer.domElement.requestPointerLock();
                 isPointerLocked = true;

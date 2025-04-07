@@ -167,12 +167,94 @@
             cursor: pointer;
         }
 
+        /* Joystick and Shoot Button Styles */
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            z-index: 3;
+        }
+
+        #joystick-wrapper {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            background: rgba(25, 196, 56, 0.2);
+            border-radius: 50%;
+            border: 2px solid #19c438;
+            touch-action: none;
+        }
+
+        #joystick {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: rgba(25, 196, 56, 0.7);
+            border-radius: 50%;
+            top: 35px;
+            left: 35px;
+            transition: transform 0.1s;
+            box-shadow: 0 0 10px rgba(25, 196, 56, 0.5);
+            border: 1px solid #a0f0b0;
+        }
+
+        #shootButton {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 50, 50, 0.3);
+            border: 2px solid rgba(255, 100, 100, 0.8);
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            box-shadow: 0 0 15px rgba(255, 100, 100, 0.5);
+            touch-action: none;
+        }
+
+        #shootButton:active {
+            background: rgba(255, 50, 50, 0.6);
+            transform: scale(0.95);
+        }
+
+        /* Hide controls on desktop if not touch device */
+        @media (hover: hover) and (pointer: fine) {
+            #controls {
+                display: none;
+            }
+        }
+
         @media (max-width: 600px) {
             .dashboard-value {
                 font-size: 14px;
             }
             .health-bar {
                 width: 80px;
+            }
+            
+            #joystick-wrapper {
+                width: 100px;
+                height: 100px;
+            }
+            
+            #joystick {
+                width: 40px;
+                height: 40px;
+                top: 30px;
+                left: 30px;
+            }
+            
+            #shootButton {
+                width: 70px;
+                height: 70px;
+                font-size: 14px;
             }
         }
     </style>
@@ -203,6 +285,14 @@
     <!-- Player -->
     <div id="player" class="player"></div>
 
+    <!-- Controls for mobile -->
+    <div id="controls">
+        <div id="joystick-wrapper">
+            <div id="joystick"></div>
+        </div>
+        <div id="shootButton">FIRE</div>
+    </div>
+
     <!-- Game Over Screen -->
     <div id="gameOver">
         <h1>GAME OVER</h1>
@@ -232,11 +322,11 @@
 
     // Background images
     const backgrounds = [
-        "/assets/assignment-9-assets/space5.jpg",
-        "/assets/assignment-9-assets/space4.jpg",
-        "/assets/assignment-9-assets/space3.jpg",
+        "/assets/assignment-9-assets/space1.jpg",
         "/assets/assignment-9-assets/space2.jpg",
-        "/assets/assignment-9-assets/space1.jpg"
+        "/assets/assignment-9-assets/space3.jpg",
+        "/assets/assignment-9-assets/space4.jpg",
+        "/assets/assignment-9-assets/space5.jpg"
     ];
 
     // Set initial values in the HUD
@@ -464,7 +554,7 @@
                     if (enemy.health <= 0) {
                         enemy.element.remove();
                         enemy.active = false;
-                        updateScore(enemy.type === 'enemy1' ? 2 : 1);
+                        updateScore(enemy.type === 'enemy1' ? 20 : 10); // score for shooting enemy
                     }
                 }
             });
@@ -573,6 +663,127 @@
         setBackground(level);
         updatePlayerPosition();
     });
+
+    // Mobile Controls Implementation
+    const joystick = document.getElementById("joystick");
+    const joystickWrapper = document.getElementById("joystick-wrapper");
+    const shootButton = document.getElementById("shootButton");
+    
+    let joystickActive = false;
+    let joystickOrigin = { x: 0, y: 0 };
+    let joystickPosition = { x: 0, y: 0 };
+    const joystickMaxDistance = 40;
+    
+    // Set up joystick event listeners
+    joystickWrapper.addEventListener("touchstart", handleJoystickStart);
+    joystickWrapper.addEventListener("touchmove", handleJoystickMove);
+    joystickWrapper.addEventListener("touchend", handleJoystickEnd);
+    
+    joystickWrapper.addEventListener("mousedown", handleJoystickStart);
+    document.addEventListener("mousemove", handleJoystickMove);
+    document.addEventListener("mouseup", handleJoystickEnd);
+    
+    // Set up shoot button event listeners
+    shootButton.addEventListener("touchstart", handleShootStart);
+    shootButton.addEventListener("touchend", handleShootEnd);
+    shootButton.addEventListener("mousedown", handleShootStart);
+    shootButton.addEventListener("mouseup", handleShootEnd);
+    
+    function handleJoystickStart(e) {
+        if (!gameActive) return;
+        
+        joystickActive = true;
+        const rect = joystickWrapper.getBoundingClientRect();
+        joystickOrigin.x = rect.left + rect.width / 2;
+        joystickOrigin.y = rect.top + rect.height / 2;
+        
+        // For touch events
+        if (e.touches) {
+            const touch = e.touches[0];
+            joystickPosition.x = touch.clientX;
+            joystickPosition.y = touch.clientY;
+        } else {
+            // For mouse events
+            joystickPosition.x = e.clientX;
+            joystickPosition.y = e.clientY;
+        }
+        
+        updateJoystickPosition();
+    }
+    
+    function handleJoystickMove(e) {
+        if (!joystickActive || !gameActive) return;
+        
+        if (e.touches) {
+            const touch = e.touches[0];
+            joystickPosition.x = touch.clientX;
+            joystickPosition.y = touch.clientY;
+        } else {
+            joystickPosition.x = e.clientX;
+            joystickPosition.y = e.clientY;
+        }
+        
+        updateJoystickPosition();
+    }
+    
+    function handleJoystickEnd() {
+        joystickActive = false;
+        joystick.style.transform = "translate(0, 0)";
+    }
+    
+    function updateJoystickPosition() {
+        const dx = joystickPosition.x - joystickOrigin.x;
+        const dy = joystickPosition.y - joystickOrigin.y;
+        
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+        
+        const limitedDistance = Math.min(distance, joystickMaxDistance);
+        
+        const moveX = Math.cos(angle) * limitedDistance;
+        const moveY = Math.sin(angle) * limitedDistance;
+        
+        joystick.style.transform = `translate(${moveX}px, ${moveY}px)`;
+        
+        // Update player movement based on joystick position
+        const normalizedX = moveX / joystickMaxDistance;
+        const normalizedY = moveY / joystickMaxDistance;
+        
+        // Apply movement to player
+        playerX += normalizedX * moveSpeed;
+        playerY += normalizedY * moveSpeed;
+        
+        // Ensure player stays within bounds
+        playerX = Math.max(playerWidth/2, Math.min(playerX, window.innerWidth - playerWidth/2));
+        playerY = Math.max(playerHeight/2, Math.min(playerY, window.innerHeight - playerHeight/2));
+        
+        updatePlayerPosition();
+    }
+    
+    function handleShootStart(e) {
+        if (!gameActive) return;
+        e.preventDefault(); // Prevent touch events from causing page scroll
+        
+        if (ammo > 0) {
+            shootBullet();
+            ammo -= 1;
+            document.getElementById("ammoValue").innerText = ammo;
+        }
+    }
+    
+    function handleShootEnd(e) {
+        e.preventDefault();
+    }
+    
+    // Detect if the device is touch capable
+    function isTouchDevice() {
+        return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
+    }
+    
+    // Show controls only on touch devices
+    if (isTouchDevice()) {
+        document.getElementById("controls").style.display = "flex";
+    }
 </script>
 </body>
 </html>
